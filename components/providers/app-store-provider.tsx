@@ -1,0 +1,484 @@
+'use client'
+
+import { useState, useCallback, useEffect, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
+import { AppStoreContext, type AppStore } from '@/lib/store'
+import type { Group, Section, TaskList, Task, Activity, User, Theme, InboxNotification, PendingSupportNav } from '@/lib/types'
+import { mockGroups, currentUser } from '@/lib/mock-data'
+import { DEFAULT_GROUP_KEY } from '@/lib/task-group-utils'
+import { seedInboxNotifications } from '@/lib/inbox-notifications'
+
+export function AppStoreProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [groups, setGroupsState] = useState<Group[]>([])
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
+  const [selectedTaskListId, setSelectedTaskListId] = useState<string | null>(null)
+  const [theme, setThemeState] = useState<Theme>('system')
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [inboxNotifications, setInboxNotifications] = useState<InboxNotification[]>([])
+  const [pendingNewsId, setPendingNewsIdState] = useState<string | null>(null)
+  const [pendingSupportNav, setPendingSupportNavState] = useState<PendingSupportNav | null>(null)
+
+  const applyThemeToDocument = useCallback((t: Theme) => {
+    if (typeof document === 'undefined') return
+    const root = document.documentElement
+    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const isDark = t === 'dark' || (t === 'system' && systemDark)
+    root.classList.toggle('dark', isDark)
+    localStorage.setItem('theme', t)
+  }, [])
+
+  // Initialize theme from localStorage
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') as Theme | null
+    if (savedTheme) {
+      setThemeState(savedTheme)
+    }
+  }, [])
+
+  // Синхронизация класса на <html> (первый проход, смена темы из setTheme дублирует — безопасно)
+  useEffect(() => {
+    applyThemeToDocument(theme)
+  }, [theme, applyThemeToDocument])
+
+  // Системная тема: плавно реагировать на смену ОС
+  useEffect(() => {
+    if (theme !== 'system' || typeof window === 'undefined') return
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = () => {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      const doc = document as Document & { startViewTransition?: (cb: () => void) => void }
+      const run = () => applyThemeToDocument('system')
+      if (!reduce && typeof doc.startViewTransition === 'function') {
+        doc.startViewTransition(run)
+      } else {
+        run()
+      }
+    }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [theme, applyThemeToDocument])
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user')
+    if (savedUser) {
+      setUser(JSON.parse(savedUser))
+      setGroupsState(mockGroups)
+      setInboxNotifications(seedInboxNotifications())
+      setIsAuthenticated(true)
+    }
+  }, [])
+
+  const setCurrentUser = useCallback((newUser: User | null) => {
+    setUser(newUser)
+    if (newUser) {
+      localStorage.setItem('user', JSON.stringify(newUser))
+      setGroupsState(mockGroups)
+      setInboxNotifications(seedInboxNotifications())
+      setPendingNewsIdState(null)
+      setPendingSupportNavState(null)
+      setIsAuthenticated(true)
+    } else {
+      localStorage.removeItem('user')
+      setGroupsState([])
+      setInboxNotifications([])
+      setPendingNewsIdState(null)
+      setPendingSupportNavState(null)
+      setIsAuthenticated(false)
+      setSelectedGroupId(null)
+      setSelectedSectionId(null)
+      setSelectedTaskListId(null)
+    }
+  }, [])
+
+  const setGroups = useCallback((newGroups: Group[]) => {
+    setGroupsState(newGroups)
+  }, [])
+
+  const selectGroup = useCallback((groupId: string | null) => {
+    setSelectedGroupId(groupId)
+    setSelectedSectionId(null)
+    setSelectedTaskListId(null)
+  }, [])
+
+  const selectSection = useCallback((sectionId: string | null) => {
+    setSelectedSectionId(sectionId)
+    setSelectedTaskListId(null)
+  }, [])
+
+  const selectTaskList = useCallback((taskListId: string | null) => {
+    setSelectedTaskListId(taskListId)
+  }, [])
+
+  const setNavigationContext = useCallback(
+    (ctx: { groupId: string | null; sectionId: string | null; taskListId: string | null }) => {
+      setSelectedGroupId(ctx.groupId)
+      setSelectedSectionId(ctx.sectionId)
+      setSelectedTaskListId(ctx.taskListId)
+    },
+    []
+  )
+
+  const markInboxNotificationRead = useCallback((id: string) => {
+    setInboxNotifications(prev => prev.map(n => (n.id === id ? { ...n, read: true } : n)))
+  }, [])
+
+  const markAllInboxNotificationsRead = useCallback(() => {
+    setInboxNotifications(prev => prev.map(n => ({ ...n, read: true })))
+  }, [])
+
+  const setPendingNewsId = useCallback((id: string | null) => {
+    setPendingNewsIdState(id)
+  }, [])
+
+  const setPendingSupportNav = useCallback((nav: PendingSupportNav | null) => {
+    setPendingSupportNavState(nav)
+  }, [])
+
+  const setTheme = useCallback(
+    (newTheme: Theme) => {
+      if (typeof document === 'undefined') {
+        setThemeState(newTheme)
+        return
+      }
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      const doc = document as Document & { startViewTransition?: (cb: () => void) => void }
+      const run = () => {
+        applyThemeToDocument(newTheme)
+        flushSync(() => setThemeState(newTheme))
+      }
+      if (!reduce && typeof doc.startViewTransition === 'function') {
+        doc.startViewTransition(run)
+      } else {
+        run()
+      }
+    },
+    [applyThemeToDocument]
+  )
+
+  // Group actions
+  const addGroup = useCallback((group: Group) => {
+    setGroupsState(prev => [...prev, group])
+  }, [])
+
+  const updateGroup = useCallback((groupId: string, updates: Partial<Group>) => {
+    setGroupsState(prev =>
+      prev.map(g => (g.id === groupId ? { ...g, ...updates } : g))
+    )
+  }, [])
+
+  const deleteGroup = useCallback((groupId: string) => {
+    setGroupsState(prev => prev.filter(g => g.id !== groupId))
+    if (selectedGroupId === groupId) {
+      setSelectedGroupId(null)
+      setSelectedSectionId(null)
+      setSelectedTaskListId(null)
+    }
+  }, [selectedGroupId])
+
+  // Section actions
+  const addSection = useCallback((groupId: string, section: Section) => {
+    setGroupsState(prev =>
+      prev.map(g =>
+        g.id === groupId ? { ...g, sections: [...g.sections, section] } : g
+      )
+    )
+  }, [])
+
+  const updateSection = useCallback((sectionId: string, updates: Partial<Section>) => {
+    setGroupsState(prev =>
+      prev.map(g => ({
+        ...g,
+        sections: g.sections.map(s =>
+          s.id === sectionId ? { ...s, ...updates } : s
+        ),
+      }))
+    )
+  }, [])
+
+  const deleteSection = useCallback((sectionId: string) => {
+    setGroupsState(prev =>
+      prev.map(g => ({
+        ...g,
+        sections: g.sections.filter(s => s.id !== sectionId),
+      }))
+    )
+    if (selectedSectionId === sectionId) {
+      setSelectedSectionId(null)
+      setSelectedTaskListId(null)
+    }
+  }, [selectedSectionId])
+
+  // TaskList actions
+  const addTaskList = useCallback((sectionId: string, taskList: TaskList) => {
+    setGroupsState(prev =>
+      prev.map(g => ({
+        ...g,
+        sections: g.sections.map(s =>
+          s.id === sectionId
+            ? { ...s, taskLists: [...s.taskLists, taskList] }
+            : s
+        ),
+      }))
+    )
+  }, [])
+
+  const updateTaskList = useCallback((taskListId: string, updates: Partial<TaskList>) => {
+    setGroupsState(prev =>
+      prev.map(g => ({
+        ...g,
+        sections: g.sections.map(s => ({
+          ...s,
+          taskLists: s.taskLists.map(tl =>
+            tl.id === taskListId ? { ...tl, ...updates } : tl
+          ),
+        })),
+      }))
+    )
+  }, [])
+
+  const deleteTaskList = useCallback((taskListId: string) => {
+    setGroupsState(prev =>
+      prev.map(g => ({
+        ...g,
+        sections: g.sections.map(s => ({
+          ...s,
+          taskLists: s.taskLists.filter(tl => tl.id !== taskListId),
+        })),
+      }))
+    )
+    if (selectedTaskListId === taskListId) {
+      setSelectedTaskListId(null)
+    }
+  }, [selectedTaskListId])
+
+  // Task actions
+  const addTask = useCallback((taskListId: string, task: Task) => {
+    setGroupsState(prev =>
+      prev.map(g => ({
+        ...g,
+        sections: g.sections.map(s => ({
+          ...s,
+          taskLists: s.taskLists.map(tl =>
+            tl.id === taskListId
+              ? { ...tl, tasks: [task, ...tl.tasks] }
+              : tl
+          ),
+        })),
+      }))
+    )
+  }, [])
+
+  const updateTask = useCallback(
+    (taskListId: string, taskId: string, updates: Partial<Task>) => {
+      setGroupsState(prev =>
+        prev.map(g => ({
+          ...g,
+          sections: g.sections.map(s => ({
+            ...s,
+            taskLists: s.taskLists.map(tl =>
+              tl.id === taskListId
+                ? {
+                    ...tl,
+                    tasks: tl.tasks.map(t =>
+                      t.id === taskId ? { ...t, ...updates } : t
+                    ),
+                  }
+                : tl
+            ),
+          })),
+        }))
+      )
+    },
+    []
+  )
+
+  const deleteTask = useCallback((taskListId: string, taskId: string) => {
+    setGroupsState(prev =>
+      prev.map(g => ({
+        ...g,
+        sections: g.sections.map(s => ({
+          ...s,
+          taskLists: s.taskLists.map(tl =>
+            tl.id === taskListId
+              ? { ...tl, tasks: tl.tasks.filter(t => t.id !== taskId) }
+              : tl
+          ),
+        })),
+      }))
+    )
+  }, [])
+
+  const renameTaskGroup = useCallback((taskListId: string, blockKey: string, newLabel: string) => {
+    const trimmed = newLabel.trim()
+    setGroupsState(prev =>
+      prev.map(g => ({
+        ...g,
+        sections: g.sections.map(s => ({
+          ...s,
+          taskLists: s.taskLists.map(tl => {
+            if (tl.id !== taskListId) return tl
+            const inBlock = (t: Task) =>
+              blockKey === DEFAULT_GROUP_KEY
+                ? !(t.groupName?.trim())
+                : (t.groupName?.trim() || '') === blockKey
+            return {
+              ...tl,
+              tasks: tl.tasks.map(t =>
+                inBlock(t)
+                  ? { ...t, groupName: trimmed ? trimmed : undefined }
+                  : t
+              ),
+            }
+          }),
+        })),
+      }))
+    )
+  }, [])
+
+  const toggleTask = useCallback(
+    (taskListId: string, taskId: string) => {
+      setGroupsState(prev =>
+        prev.map(g => ({
+          ...g,
+          sections: g.sections.map(s => ({
+            ...s,
+            taskLists: s.taskLists.map(tl =>
+              tl.id === taskListId
+                ? {
+                    ...tl,
+                    tasks: tl.tasks.map(t =>
+                      t.id === taskId
+                        ? {
+                            ...t,
+                            completed: !t.completed,
+                            completedAt: !t.completed ? new Date() : undefined,
+                            completedBy: !t.completed ? user! : undefined,
+                          }
+                        : t
+                    ),
+                  }
+                : tl
+            ),
+          })),
+        }))
+      )
+
+      // Add activity
+      const task = groups
+        .flatMap(g => g.sections)
+        .flatMap(s => s.taskLists)
+        .find(tl => tl.id === taskListId)
+        ?.tasks.find(t => t.id === taskId)
+
+      if (task && user) {
+        const activity: Activity = {
+          id: `a${Date.now()}`,
+          userId: user.id,
+          user: user,
+          action: task.completed ? 'unchecked' : 'completed',
+          targetName: task.title,
+          timestamp: new Date(),
+          taskListId,
+        }
+        addActivity(taskListId, activity)
+      }
+    },
+    [groups, user]
+  )
+
+  const addActivity = useCallback((taskListId: string, activity: Activity) => {
+    setGroupsState(prev =>
+      prev.map(g => ({
+        ...g,
+        sections: g.sections.map(s => ({
+          ...s,
+          taskLists: s.taskLists.map(tl =>
+            tl.id === taskListId
+              ? { ...tl, activities: [activity, ...tl.activities] }
+              : tl
+          ),
+        })),
+      }))
+    )
+  }, [])
+
+  const getSelectedGroup = useCallback(() => {
+    return groups.find(g => g.id === selectedGroupId) || null
+  }, [groups, selectedGroupId])
+
+  const getSelectedSection = useCallback(() => {
+    const group = getSelectedGroup()
+    return group?.sections.find(s => s.id === selectedSectionId) || null
+  }, [getSelectedGroup, selectedSectionId])
+
+  const getSelectedTaskList = useCallback(() => {
+    const section = getSelectedSection()
+    return section?.taskLists.find(tl => tl.id === selectedTaskListId) || null
+  }, [getSelectedSection, selectedTaskListId])
+
+  const markAsRead = useCallback((taskListId: string) => {
+    setGroupsState(prev =>
+      prev.map(g => ({
+        ...g,
+        sections: g.sections.map(s => ({
+          ...s,
+          taskLists: s.taskLists.map(tl =>
+            tl.id === taskListId ? { ...tl, unreadCount: 0 } : tl
+          ),
+        })),
+      }))
+    )
+  }, [])
+
+  const store: AppStore = {
+    currentUser: user,
+    groups,
+    selectedGroupId,
+    selectedSectionId,
+    selectedTaskListId,
+    theme,
+    isAuthenticated,
+    inboxNotifications,
+    pendingNewsId,
+    pendingSupportNav,
+    setCurrentUser,
+    setGroups,
+    selectGroup,
+    selectSection,
+    selectTaskList,
+    setNavigationContext,
+    setTheme,
+    markInboxNotificationRead,
+    markAllInboxNotificationsRead,
+    setPendingNewsId,
+    setPendingSupportNav,
+    addGroup,
+    updateGroup,
+    deleteGroup,
+    addSection,
+    updateSection,
+    deleteSection,
+    addTaskList,
+    updateTaskList,
+    deleteTaskList,
+    addTask,
+    updateTask,
+    deleteTask,
+    toggleTask,
+    renameTaskGroup,
+    addActivity,
+    getSelectedGroup,
+    getSelectedSection,
+    getSelectedTaskList,
+    markAsRead,
+  }
+
+  return (
+    <AppStoreContext.Provider value={store}>
+      {children}
+    </AppStoreContext.Provider>
+  )
+}
