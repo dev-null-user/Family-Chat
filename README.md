@@ -58,12 +58,57 @@ Next.js, React, TypeScript, Tailwind CSS, Radix UI, Zustand (контекст/st
 
 ## Запуск
 
-`ash
+```bash
 npm install
 npm run dev
-`
+```
 
 Откройте [http://localhost:3000](http://localhost:3000).
+
+## Деплой
+
+Сборка для продакшена использует режим [**standalone**](https://nextjs.org/docs/app/api-reference/config/next-config-js/output) (`output: 'standalone'` в `next.config.mjs`): в образ или на сервер попадают только нужные артефакты и `server.js`, без полного `node_modules`.
+
+### Локальная продакшен-сборка
+
+```bash
+npm install
+npm run build
+npm run start
+```
+
+Сервер слушает порт **3000** (задаётся переменной окружения `PORT`).
+
+### Docker
+
+Нужны установленные [Docker](https://docs.docker.com/get-docker/) и Docker Compose. В корне репозитория лежат [`Dockerfile`](Dockerfile) и [`docker-compose.yml`](docker-compose.yml); контекст сборки задаёт [`.dockerignore`](.dockerignore).
+
+**Через Compose** (сборка образа и запуск контейнера `family-chat-web`):
+
+```bash
+docker compose up --build
+```
+
+Приложение: [http://localhost:3000](http://localhost:3000). Остановка: `Ctrl+C` или `docker compose down`. Фоновый режим: `docker compose up -d --build`, остановка: `docker compose down`.
+
+Первая сборка образа может занять несколько минут (`npm ci` + `next build`).
+
+**Только Docker** (сборка и запуск вручную):
+
+```bash
+docker build -t family-chat .
+docker run --rm -p 3000:3000 family-chat
+```
+
+Образ многостадийный: зависимости → `next build` → финальный слой на Node 22 Alpine с непривилегированным пользователем `nextjs`.
+
+### Переменные окружения
+
+Сейчас приложению не требуются обязательные секреты для сборки. Если позже появятся `NEXT_PUBLIC_*` или серверные переменные, задайте их в Compose (`environment` / файл `.env` рядом с `docker-compose.yml`) или при `docker run -e …`, а для хостинга — в панели провайдера.
+
+### Другие платформы
+
+Проект — обычное Next.js-приложение: его можно выкладывать на **Vercel**, **Node-хостинг** или **Kubernetes**, подставив ту же команду запуска `node server.js` (из каталога standalone) или стандартный `npm run start` после `npm run build` на машине со всеми зависимостями.
 
 ---
 
