@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useId, useRef, useMemo } from 'react'
 import { MobileNav, type MobileTab } from './mobile-nav'
-import { MobileNavHint } from './mobile-nav-hint'
 import { GroupsList } from './groups/groups-list'
 import { SectionsList } from './sections/sections-list'
 import { TaskListsList } from './tasks/task-lists-list'
@@ -11,26 +10,39 @@ import { LoginForm } from './auth/login-form'
 import { ProfilePage } from './profile/profile-page'
 import { NewsPage } from './news/news-page'
 import { SupportPage } from './support/support-page'
+import { ChatPage } from './chat/chat-page'
 import { ThemeToggle } from './theme-toggle'
 import { NotificationsBell } from './notifications/notifications-bell'
 import { useAppStore } from '@/lib/store'
 import { useGroupsColumnWidthPx } from '@/hooks/use-groups-column-width'
 import { useViewportWidthHysteresis } from '@/hooks/use-media-max-width'
 import { useColumnRevealAfterExpand } from '@/hooks/use-column-reveal-after-expand'
+import { useIsMobile } from '@/components/ui/use-mobile'
 import { useSectionsColumnWidthPx } from '@/hooks/use-sections-column-width'
 import { useTaskListsColumnWidthPx } from '@/hooks/use-task-lists-column-width'
 import type { InboxNavUiHint } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Button } from './ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
-import { Home, Newspaper, HeadphonesIcon, User, LogOut } from 'lucide-react'
+import { Home, Newspaper, HeadphonesIcon, User, LogOut, MessageCircle } from 'lucide-react'
 
-type DesktopTab = 'home' | 'news' | 'support' | 'profile'
+type DesktopTab = 'home' | 'news' | 'chat' | 'support' | 'profile'
 type HomeView = 'groups' | 'sections' | 'taskLists' | 'taskDetail'
 
-const desktopNavItems = [
+const shellNavItems = [
   { id: 'home' as const, label: 'Главная', icon: Home },
   { id: 'news' as const, label: 'Новости', icon: Newspaper },
+  { id: 'chat' as const, label: 'Чат', icon: MessageCircle },
   { id: 'support' as const, label: 'Поддержка', icon: HeadphonesIcon },
   { id: 'profile' as const, label: 'Профиль', icon: User },
 ]
@@ -93,13 +105,42 @@ function DesktopHomeColumnDivider({ className }: { className?: string }) {
 }
 
 export function AppShell() {
-  const { isAuthenticated, currentUser, groups, selectedGroupId, selectedSectionId, selectedTaskListId, selectGroup, selectSection, selectTaskList, setCurrentUser } = useAppStore()
+  const {
+    isAuthenticated,
+    currentUser,
+    groups,
+    selectedGroupId,
+    selectedSectionId,
+    selectedTaskListId,
+    selectGroup,
+    selectSection,
+    selectTaskList,
+    setCurrentUser,
+    inboxNotifications,
+    chatThreads,
+    selectedChatPeerId,
+  } = useAppStore()
   const [mobileTab, setMobileTab] = useState<MobileTab>('home')
   const [desktopTab, setDesktopTab] = useState<DesktopTab>('home')
   const [homeView, setHomeView] = useState<HomeView>('groups')
-  const [isMobile, setIsMobile] = useState(false)
+  const [logoutOpen, setLogoutOpen] = useState(false)
+  const isMobile = useIsMobile()
 
   const totalUnread = groups.reduce((sum, g) => sum + g.unreadCount, 0)
+
+  const desktopNavBadges = useMemo(() => {
+    const news = inboxNotifications.filter(n => !n.read && n.target.kind === 'news').length
+    const support = inboxNotifications.filter(n => !n.read && n.target.kind === 'support').length
+    const profile = inboxNotifications.filter(n => !n.read && n.target.kind === 'profile').length
+    const chat = chatThreads.reduce((sum, t) => sum + t.unreadCount, 0)
+    return {
+      home: totalUnread,
+      news,
+      chat,
+      support,
+      profile,
+    } as Record<DesktopTab, number>
+  }, [inboxNotifications, totalUnread, chatThreads])
 
   /** Узкая колонка групп, когда открыт раздел со списками задач */
   const compactGroupsColumn = !!selectedSectionId
@@ -154,15 +195,6 @@ export function AppShell() {
   const groupsListIconOnlyRows = groupsColumnCompact || !groupsListRevealFull
   const sectionsListIconOnlyRows = sectionsColumnCompact || !sectionsListRevealFull
   const taskListsListIconOnlyRows = taskListsColumnCompact || !taskListsListRevealFull
-
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [])
 
   useEffect(() => {
     if (isMobile && mobileTab === 'home') {
@@ -244,6 +276,10 @@ export function AppShell() {
         setDesktopTab('support')
         setMobileTab('support')
         break
+      case 'chat':
+        setDesktopTab('chat')
+        setMobileTab('chat')
+        break
       case 'profile':
         setDesktopTab('profile')
         setMobileTab('profile')
@@ -251,14 +287,18 @@ export function AppShell() {
     }
   }
 
+  /** На мобилке в открытом диалоге чата шапку с названием раздела не показываем — остаётся шапка переписки с «Назад». */
+  const showMobileShellHeader =
+    mobileTab !== 'home' && !(mobileTab === 'chat' && selectedChatPeerId)
+
   // Mobile layout
   if (isMobile) {
     return (
       <div className="app-shell-bg mobile-ui-compact flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden">
-        {mobileTab !== 'home' && (
+        {showMobileShellHeader && (
           <div className="flex shrink-0 items-center gap-3 border-b border-border/35 bg-background/45 px-4 py-3 backdrop-blur-md">
             <h1 className="min-w-0 flex-1 text-base font-semibold tracking-tight text-foreground">
-              {desktopNavItems.find(i => i.id === mobileTab)?.label}
+              {shellNavItems.find(i => i.id === mobileTab)?.label}
             </h1>
             <NotificationsBell onInboxNavigate={handleInboxNavigate} />
           </div>
@@ -307,6 +347,11 @@ export function AppShell() {
               <NewsPage />
             </div>
           )}
+          {mobileTab === 'chat' && (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <ChatPage />
+            </div>
+          )}
           {mobileTab === 'support' && (
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <SupportPage />
@@ -319,7 +364,6 @@ export function AppShell() {
           )}
         </main>
 
-        <MobileNavHint mobileTab={mobileTab} homeView={homeView} />
         <MobileNav currentTab={mobileTab} onTabChange={setMobileTab} />
       </div>
     )
@@ -327,6 +371,7 @@ export function AppShell() {
 
   // Desktop layout
   return (
+    <>
     <div className="app-shell-bg flex h-dvh max-h-dvh min-h-0 gap-3 overflow-hidden p-3 md:gap-4 md:p-4">
       {/* Desktop Sidebar — отдельный блок с скруглением, не «липнет» к краю */}
       <aside className="app-chrome-panel flex h-full min-h-0 w-[13.5rem] shrink-0 flex-col overflow-hidden 2xl:w-[15.5rem]">
@@ -348,7 +393,9 @@ export function AppShell() {
 
         {/* Navigation */}
         <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-1.5 2xl:p-2">
-          {desktopNavItems.map((item) => (
+          {shellNavItems.map((item) => {
+            const badge = desktopNavBadges[item.id]
+            return (
             <Button
               key={item.id}
               variant={desktopTab === item.id ? 'secondary' : 'ghost'}
@@ -360,13 +407,14 @@ export function AppShell() {
             >
               <item.icon className="h-4 w-4 shrink-0" />
               <span className="min-w-0 truncate text-left text-sm">{item.label}</span>
-              {item.id === 'home' && totalUnread > 0 && (
+              {badge > 0 && (
                 <span className="ml-auto h-5 min-w-5 px-1.5 text-[10px] font-medium bg-primary text-primary-foreground rounded-full flex items-center justify-center">
-                  {totalUnread > 99 ? '99+' : totalUnread}
+                  {badge > 99 ? '99+' : badge}
                 </span>
               )}
             </Button>
-          ))}
+            )
+          })}
         </nav>
 
         {/* User Section */}
@@ -384,11 +432,12 @@ export function AppShell() {
             </div>
             <div className="flex items-center">
               <ThemeToggle />
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                onClick={() => setCurrentUser(null)}
+                aria-label="Выйти из аккаунта"
+                onClick={() => setLogoutOpen(true)}
               >
                 <LogOut className="h-4 w-4" />
               </Button>
@@ -404,6 +453,7 @@ export function AppShell() {
           <h2 className="font-semibold text-foreground">
             {desktopTab === 'home' && 'Главная'}
             {desktopTab === 'news' && 'Новости'}
+            {desktopTab === 'chat' && 'Чат'}
             {desktopTab === 'support' && 'Техподдержка'}
             {desktopTab === 'profile' && 'Профиль'}
           </h2>
@@ -411,6 +461,15 @@ export function AppShell() {
             <NotificationsBell onInboxNavigate={handleInboxNavigate} />
           </div>
         </header>
+
+        {desktopTab === 'home' && homeViewportNarrowHysteresis && (
+          <div
+            className="hidden shrink-0 border-b border-border/50 bg-muted/20 px-4 py-1.5 text-center text-[11px] leading-snug text-muted-foreground lg:block"
+            role="note"
+          >
+            Узкое окно: наведите на иконку — появится полное название группы, раздела или списка.
+          </div>
+        )}
 
         {/* Content Area */}
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -448,7 +507,9 @@ export function AppShell() {
                   homePaneMutedClass,
                   'h-full shrink-0 transition-[min-width,width,max-width] duration-300 ease-out',
                   selectedGroupId ? 'block' : 'lg:block hidden',
-                  sectionsColumnCompact ? groupsListIconOnlyColumnClass : groupsColumnWidthClass,
+                  sectionsColumnCompact
+                    ? groupsListIconOnlyColumnClass
+                    : 'min-w-[13rem] max-w-[min(560px,42vw)] 2xl:min-w-[14rem]',
                   !sectionsColumnCompact && sectionsColumnWidthPx == null && selectedGroupId && 'w-52 2xl:w-60',
                 )}
                 style={
@@ -473,7 +534,7 @@ export function AppShell() {
                       'h-full shrink-0 transition-[min-width,width,max-width] duration-300 ease-out hidden xl:block',
                       taskListsColumnCompact
                         ? groupsListIconOnlyColumnClass
-                        : 'min-w-[11rem] w-56 max-w-[16rem] 2xl:w-64',
+                        : 'min-w-[13rem] max-w-[min(560px,42vw)] 2xl:min-w-[14rem]',
                       !taskListsColumnCompact && taskListsColumnWidthPx == null && 'w-56 2xl:w-64',
                     )}
                     style={
@@ -507,6 +568,12 @@ export function AppShell() {
             </div>
           )}
 
+          {desktopTab === 'chat' && (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <ChatPage />
+            </div>
+          )}
+
           {desktopTab === 'support' && (
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <SupportPage />
@@ -521,5 +588,26 @@ export function AppShell() {
         </main>
       </div>
     </div>
+
+    <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Выйти из аккаунта?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Сессия на этом устройстве будет завершена. Войти снова можно по email и паролю.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Отмена</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={() => setCurrentUser(null)}
+          >
+            Выйти
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   )
 }

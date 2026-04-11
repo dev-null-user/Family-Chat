@@ -3,13 +3,14 @@
 import { useState, useLayoutEffect, useMemo } from 'react'
 import type { Section } from '@/lib/types'
 
-const ROW_CHROME_PX = 188
-const MIN_COL_PX = 200
-const BADGE_SLACK_PX = 28
+/** Иконка, отступы, карандаш, шеврон, запас под бейдж — без текста названия */
+const ROW_CHROME_PX = 228
+const MIN_COL_PX = 208
+const BADGE_SLACK_PX = 32
 
 function maxColPx() {
-  if (typeof window === 'undefined') return 480
-  return Math.min(480, Math.floor(window.innerWidth * 0.36))
+  if (typeof window === 'undefined') return 560
+  return Math.min(560, Math.floor(window.innerWidth * 0.42))
 }
 
 function measureSectionsColumnWidth(sections: Section[]): number {

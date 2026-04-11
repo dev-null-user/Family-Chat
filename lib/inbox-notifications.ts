@@ -65,5 +65,13 @@ export function seedInboxNotifications(): InboxNotification[] {
       read: true,
       target: { kind: 'profile' },
     },
+    {
+      id: 'in8',
+      title: 'Сообщение от Марии',
+      body: 'Договорились на воскресенье?',
+      createdAt: new Date(now - 50 * 60 * 1000),
+      read: false,
+      target: { kind: 'chat', peerId: '3' },
+    },
   ]
 }

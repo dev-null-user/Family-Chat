@@ -12,7 +12,7 @@ import { Plus, Users } from 'lucide-react'
 
 interface GroupsListProps {
   onGroupSelect?: (groupId: string) => void
-  /** lg+: только иконки групп, заголовок «Группы» + плюс (узкая колонка на главной) */
+  /** lg+: узкая колонка — иконка и название под ней, заголовок «Группы» + плюс */
   desktopIconOnlyRows?: boolean
 }
 
@@ -47,9 +47,14 @@ export function GroupsList({ onGroupSelect, desktopIconOnlyRows = false }: Group
             Группы
           </h2>
           {!desktopIconOnlyRows && (
-            <p className="mt-0.5 text-[11px] text-muted-foreground max-lg:leading-snug lg:text-xs">
-              {groups.length} {groups.length === 1 ? 'группа' : 'групп'}
-            </p>
+            <>
+              <p className="mt-0.5 text-[11px] text-muted-foreground max-lg:leading-snug lg:text-xs">
+                {groups.length} {groups.length === 1 ? 'группа' : 'групп'}
+              </p>
+              <p className="mt-1 text-[11px] leading-snug text-muted-foreground/90 lg:hidden">
+                Дальше: раздел → список → задачи
+              </p>
+            </>
           )}
         </div>
         <Button

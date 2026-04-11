@@ -12,7 +12,7 @@ interface GroupCardProps {
   onClick: () => void
   onEdit?: () => void
   isSelected?: boolean
-  /** lg+: только иконка группы (название, бейдж, карандаш скрыты) */
+  /** lg+: компактная колонка — иконка и название под ней */
   desktopIconOnly?: boolean
 }
 
@@ -49,12 +49,11 @@ export function GroupCard({ group, onClick, onEdit, isSelected, desktopIconOnly 
     >
       <button
         type="button"
-        title={desktopIconOnly ? group.name : undefined}
-        aria-label={desktopIconOnly ? group.name : undefined}
+        aria-label={group.name}
         className={cn(
           'flex min-w-0 flex-1 items-center gap-3 text-left max-lg:p-3.5 max-lg:pr-2',
           'lg:gap-2.5 lg:px-2.5 lg:py-3 2xl:gap-3 2xl:px-4',
-          desktopIconOnly && 'lg:justify-center lg:gap-0 lg:px-1 lg:py-2',
+          desktopIconOnly && 'lg:flex-col lg:justify-center lg:gap-1.5 lg:px-1.5 lg:py-2.5',
         )}
         onClick={onClick}
       >
@@ -62,46 +61,60 @@ export function GroupCard({ group, onClick, onEdit, isSelected, desktopIconOnly 
           className={cn(
             'flex shrink-0 items-center justify-center rounded-2xl max-lg:h-12 max-lg:w-12 max-lg:shadow-inner',
             'lg:h-10 lg:w-10 lg:rounded-xl',
-            desktopIconOnly && 'lg:h-9 lg:w-9',
+            desktopIconOnly && 'lg:relative lg:h-9 lg:w-9',
             isSelected
               ? 'bg-primary text-primary-foreground max-lg:shadow-md max-lg:shadow-primary/25'
               : 'bg-primary/12 text-primary dark:bg-primary/18'
           )}
         >
           <Users className="max-lg:h-6 max-lg:w-6 h-5 w-5" />
+          {desktopIconOnly && group.unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 hidden min-h-[1rem] min-w-[1rem] items-center justify-center rounded-full bg-primary px-0.5 text-[9px] font-bold text-primary-foreground shadow ring-2 ring-background lg:flex">
+              {group.unreadCount > 9 ? '9+' : group.unreadCount}
+            </span>
+          )}
         </div>
+
+        {desktopIconOnly && (
+          <span
+            className="hidden w-full max-w-[6.75rem] truncate text-center text-[10px] font-medium leading-tight text-foreground lg:block"
+            title={group.name}
+          >
+            {group.name}
+          </span>
+        )}
 
         <div className={cn('min-w-0 flex-1', desktopIconOnly && 'lg:hidden')}>
-          <div className="flex items-start gap-2">
-            <h3 className="min-w-0 flex-1 break-words text-base font-semibold leading-snug tracking-tight text-foreground max-lg:text-[0.9375rem] max-lg:font-semibold lg:text-sm lg:font-medium">
-              {group.name}
-            </h3>
-            {group.unreadCount > 0 && (
-              <Badge className="mt-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px] font-semibold shadow-sm">
-                {group.unreadCount}
-              </Badge>
-            )}
-          </div>
-
-          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground max-lg:mt-1.5 lg:mt-0.5 lg:truncate lg:leading-normal">
-            {getActivityText()}
-          </p>
-
-          {/* Участники — только на мобильных, под текстом */}
-          <div className="mt-2.5 flex items-center gap-2 lg:hidden">
-            <div className="flex -space-x-2">
-              {group.members.slice(0, 4).map(member => (
-                <Avatar key={member.id} className="h-7 w-7 border-2 border-card shadow-sm">
-                  <AvatarImage src={member.avatar} alt={member.name} />
-                  <AvatarFallback className="bg-muted text-[10px] font-medium">{member.name.charAt(0)}</AvatarFallback>
-                </Avatar>
-              ))}
+            <div className="flex items-start gap-2">
+              <h3 className="min-w-0 flex-1 break-words text-base font-semibold leading-snug tracking-tight text-foreground max-lg:text-[0.9375rem] max-lg:font-semibold lg:text-sm lg:font-medium">
+                {group.name}
+              </h3>
+              {group.unreadCount > 0 && (
+                <Badge className="mt-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px] font-semibold shadow-sm">
+                  {group.unreadCount}
+                </Badge>
+              )}
             </div>
-            {group.members.length > 4 && (
-              <span className="text-[11px] font-medium text-muted-foreground">+{group.members.length - 4}</span>
-            )}
+
+            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground max-lg:mt-1.5 lg:mt-0.5 lg:truncate lg:leading-normal">
+              {getActivityText()}
+            </p>
+
+            {/* Участники — только на мобильных, под текстом */}
+            <div className="mt-2.5 flex items-center gap-2 lg:hidden">
+              <div className="flex -space-x-2">
+                {group.members.slice(0, 4).map(member => (
+                  <Avatar key={member.id} className="h-7 w-7 border-2 border-card shadow-sm">
+                    <AvatarImage src={member.avatar} alt={member.name} />
+                    <AvatarFallback className="bg-muted text-[10px] font-medium">{member.name.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                ))}
+              </div>
+              {group.members.length > 4 && (
+                <span className="text-[11px] font-medium text-muted-foreground">+{group.members.length - 4}</span>
+              )}
+            </div>
           </div>
-        </div>
       </button>
 
       <div

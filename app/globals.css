@@ -303,6 +303,28 @@
   }
 }
 
+/* Подсветка сообщения в чате после перехода по цитате */
+@keyframes chat-message-highlight-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--primary) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in oklch, var(--primary) 22%, transparent);
+  }
+}
+
+.chat-message-highlight-pulse {
+  animation: chat-message-highlight-pulse 0.9s ease-in-out 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-message-highlight-pulse {
+    animation: none;
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--primary) 35%, transparent);
+  }
+}
+
 /* Line clamp */
 @layer utilities {
   .line-clamp-1 {

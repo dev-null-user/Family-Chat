@@ -3,14 +3,14 @@
 import { useState, useLayoutEffect, useMemo } from 'react'
 import type { TaskList } from '@/lib/types'
 
-/** иконка + прогресс/мета + chevron */
-const ROW_CHROME_PX = 220
-const MIN_COL_PX = 200
-const BADGE_SLACK_PX = 28
+/** Иконка, отступы, прогресс в строке, шеврон, колонка с карандашом, запас под бейдж — без текста названия */
+const ROW_CHROME_PX = 228
+const MIN_COL_PX = 208
+const BADGE_SLACK_PX = 32
 
 function maxColPx() {
-  if (typeof window === 'undefined') return 420
-  return Math.min(420, Math.floor(window.innerWidth * 0.32))
+  if (typeof window === 'undefined') return 560
+  return Math.min(560, Math.floor(window.innerWidth * 0.42))
 }
 
 function measureTaskListsColumnWidth(taskLists: TaskList[]): number {

@@ -3,8 +3,23 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { AppStoreContext, type AppStore } from '@/lib/store'
-import type { Group, Section, TaskList, Task, Activity, User, Theme, InboxNotification, PendingSupportNav } from '@/lib/types'
-import { mockGroups, currentUser } from '@/lib/mock-data'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import type {
+  Group,
+  Section,
+  TaskList,
+  Task,
+  Activity,
+  User,
+  Theme,
+  InboxNotification,
+  PendingSupportNav,
+  ChatMessage,
+  ChatReplyRef,
+  ChatThreadSummary,
+} from '@/lib/types'
+import { mockGroups, mockUsers } from '@/lib/mock-data'
+import { createInitialChatState } from '@/lib/chat-seed'
 import { DEFAULT_GROUP_KEY } from '@/lib/task-group-utils'
 import { seedInboxNotifications } from '@/lib/inbox-notifications'
 
@@ -19,6 +34,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [inboxNotifications, setInboxNotifications] = useState<InboxNotification[]>([])
   const [pendingNewsId, setPendingNewsIdState] = useState<string | null>(null)
   const [pendingSupportNav, setPendingSupportNavState] = useState<PendingSupportNav | null>(null)
+  const [chatThreads, setChatThreads] = useState<ChatThreadSummary[]>([])
+  const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>({})
+  const [selectedChatPeerId, setSelectedChatPeerId] = useState<string | null>(null)
 
   const applyThemeToDocument = useCallback((t: Theme) => {
     if (typeof document === 'undefined') return
@@ -64,9 +82,13 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const savedUser = localStorage.getItem('user')
     if (savedUser) {
-      setUser(JSON.parse(savedUser))
+      const parsed = JSON.parse(savedUser) as User
+      setUser(parsed)
       setGroupsState(mockGroups)
       setInboxNotifications(seedInboxNotifications())
+      const chat = createInitialChatState(parsed)
+      setChatThreads(chat.threads)
+      setChatMessages(chat.messages)
       setIsAuthenticated(true)
     }
   }, [])
@@ -79,6 +101,10 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       setInboxNotifications(seedInboxNotifications())
       setPendingNewsIdState(null)
       setPendingSupportNavState(null)
+      const chat = createInitialChatState(newUser)
+      setChatThreads(chat.threads)
+      setChatMessages(chat.messages)
+      setSelectedChatPeerId(null)
       setIsAuthenticated(true)
     } else {
       localStorage.removeItem('user')
@@ -86,6 +112,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       setInboxNotifications([])
       setPendingNewsIdState(null)
       setPendingSupportNavState(null)
+      setChatThreads([])
+      setChatMessages({})
+      setSelectedChatPeerId(null)
       setIsAuthenticated(false)
       setSelectedGroupId(null)
       setSelectedSectionId(null)
@@ -433,6 +462,175 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     )
   }, [])
 
+  const ensureChatThread = useCallback(
+    (peer: User) => {
+      if (!user || peer.id === user.id) return
+      setChatMessages(prev => (prev[peer.id] ? prev : { ...prev, [peer.id]: [] }))
+      setChatThreads(prev => {
+        if (prev.some(t => t.peerId === peer.id)) return prev
+        const row: ChatThreadSummary = {
+          peerId: peer.id,
+          peer,
+          lastMessageAt: new Date(0),
+          lastPreview: '',
+          unreadCount: 0,
+        }
+        return [...prev, row].sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime())
+      })
+    },
+    [user],
+  )
+
+  const sendChatText = useCallback(
+    (peerId: string, text: string, replyTo?: ChatReplyRef) => {
+      if (!user) return
+      const trimmed = text.trim()
+      if (!trimmed) return
+      const msg: ChatMessage = {
+        id: `cm${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        threadPeerId: peerId,
+        senderId: user.id,
+        createdAt: new Date(),
+        kind: 'text',
+        text: trimmed,
+        replyTo,
+      }
+      setChatMessages(prev => ({
+        ...prev,
+        [peerId]: [...(prev[peerId] ?? []), msg],
+      }))
+      setChatThreads(prev => {
+        const peer = mockUsers.find(u => u.id === peerId) ?? prev.find(t => t.peerId === peerId)?.peer
+        if (!peer) return prev
+        const others = prev.filter(t => t.peerId !== peerId)
+        const row: ChatThreadSummary = {
+          peerId,
+          peer,
+          lastMessageAt: msg.createdAt,
+          lastPreview: trimmed,
+          unreadCount: 0,
+        }
+        return [row, ...others].sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime())
+      })
+    },
+    [user],
+  )
+
+  const sendChatVoice = useCallback(
+    (peerId: string, mediaUrl: string, durationSec: number) => {
+      if (!user) return
+      const preview = 'Голосовое сообщение'
+      const msg: ChatMessage = {
+        id: `cm${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        threadPeerId: peerId,
+        senderId: user.id,
+        createdAt: new Date(),
+        kind: 'voice',
+        mediaUrl,
+        durationSec,
+        text: preview,
+      }
+      setChatMessages(prev => ({
+        ...prev,
+        [peerId]: [...(prev[peerId] ?? []), msg],
+      }))
+      setChatThreads(prev => {
+        const peer = mockUsers.find(u => u.id === peerId) ?? prev.find(t => t.peerId === peerId)?.peer
+        if (!peer) return prev
+        const others = prev.filter(t => t.peerId !== peerId)
+        const row: ChatThreadSummary = {
+          peerId,
+          peer,
+          lastMessageAt: msg.createdAt,
+          lastPreview: preview,
+          unreadCount: 0,
+        }
+        return [row, ...others].sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime())
+      })
+    },
+    [user],
+  )
+
+  const sendChatFiles = useCallback(
+    (
+      peerId: string,
+      files: { url: string; fileName: string; mimeType: string; kind: 'image' | 'file' }[],
+      options?: { caption?: string; combineAsAlbum?: boolean },
+    ) => {
+      if (!user || files.length === 0) return
+      const now = Date.now()
+      const caption = options?.caption?.trim() || undefined
+      const allImages = files.every(f => f.kind === 'image')
+      const combine =
+        Boolean(options?.combineAsAlbum && allImages && files.length > 1)
+
+      const previewFor = (msg: ChatMessage): string => {
+        if (msg.caption) return msg.caption
+        if (msg.kind === 'image') {
+          const n = msg.mediaUrls?.length ?? (msg.mediaUrl ? 1 : 0)
+          return n > 1 ? `${n} фото` : 'Фото'
+        }
+        return msg.fileName ?? 'Файл'
+      }
+
+      let newMessages: ChatMessage[]
+
+      if (combine) {
+        const urls = files.map(f => f.url)
+        const msg: ChatMessage = {
+          id: `cm${now}-alb-${Math.random().toString(36).slice(2, 7)}`,
+          threadPeerId: peerId,
+          senderId: user.id,
+          createdAt: new Date(now),
+          kind: 'image',
+          mediaUrl: urls[0],
+          mediaUrls: urls,
+          caption,
+        }
+        newMessages = [msg]
+      } else {
+        newMessages = files.map((f, i) => ({
+          id: `cm${now}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+          threadPeerId: peerId,
+          senderId: user.id,
+          createdAt: new Date(now + i),
+          kind: f.kind,
+          mediaUrl: f.url,
+          fileName: f.fileName,
+          mimeType: f.mimeType,
+          caption: i === 0 ? caption : undefined,
+        }))
+      }
+
+      setChatMessages(prev => ({
+        ...prev,
+        [peerId]: [...(prev[peerId] ?? []), ...newMessages],
+      }))
+      const last = newMessages[newMessages.length - 1]!
+      const lastPreview = previewFor(last)
+      setChatThreads(prev => {
+        const peer = mockUsers.find(u => u.id === peerId) ?? prev.find(t => t.peerId === peerId)?.peer
+        if (!peer) return prev
+        const others = prev.filter(t => t.peerId !== peerId)
+        const row: ChatThreadSummary = {
+          peerId,
+          peer,
+          lastMessageAt: last.createdAt,
+          lastPreview,
+          unreadCount: 0,
+        }
+        return [row, ...others].sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime())
+      })
+    },
+    [user],
+  )
+
+  const markChatThreadRead = useCallback((peerId: string) => {
+    setChatThreads(prev =>
+      prev.map(t => (t.peerId === peerId ? { ...t, unreadCount: 0 } : t)),
+    )
+  }, [])
+
   const store: AppStore = {
     currentUser: user,
     groups,
@@ -444,6 +642,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     inboxNotifications,
     pendingNewsId,
     pendingSupportNav,
+    chatThreads,
+    chatMessages,
+    selectedChatPeerId,
     setCurrentUser,
     setGroups,
     selectGroup,
@@ -455,6 +656,12 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     markAllInboxNotificationsRead,
     setPendingNewsId,
     setPendingSupportNav,
+    setSelectedChatPeerId,
+    ensureChatThread,
+    sendChatText,
+    sendChatVoice,
+    sendChatFiles,
+    markChatThreadRead,
     addGroup,
     updateGroup,
     deleteGroup,
@@ -477,8 +684,10 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AppStoreContext.Provider value={store}>
-      {children}
-    </AppStoreContext.Provider>
+    <TooltipProvider delayDuration={400}>
+      <AppStoreContext.Provider value={store}>
+        {children}
+      </AppStoreContext.Provider>
+    </TooltipProvider>
   )
 }

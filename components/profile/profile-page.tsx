@@ -18,6 +18,16 @@ import { Switch } from '@/components/ui/switch'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   User,
   Mail,
   Phone,
@@ -54,6 +64,7 @@ export function ProfilePage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [cropOpen, setCropOpen] = useState(false)
+  const [logoutOpen, setLogoutOpen] = useState(false)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
   const [notify, setNotify] = useState<NotificationPreferences>(() => loadNotificationPreferences())
   const avatarFileRef = useRef<HTMLInputElement>(null)
@@ -123,10 +134,6 @@ export function ProfilePage() {
     }, 500)
   }
 
-  const handleLogout = () => {
-    setCurrentUser(null)
-  }
-
   const themeOptions = [
     { value: 'light' as const, label: 'Светлая', icon: Sun },
     { value: 'dark' as const, label: 'Темная', icon: Moon },
@@ -169,9 +176,6 @@ export function ProfilePage() {
     <div className="flex h-full min-h-0 flex-col bg-transparent">
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto max-w-lg space-y-2 px-2.5 py-1.5 pb-3 md:max-w-xl md:space-y-2.5 md:px-3 md:py-2 md:pb-4">
-          <p className="text-center text-[10px] font-medium uppercase tracking-wider text-muted-foreground/80">
-            Профиль
-          </p>
 
           <Card className={cn('border-0 shadow-none', glass)}>
             <CardContent className="px-2.5 pb-2 pt-2 md:px-3 md:pb-2.5 md:pt-2.5">
@@ -388,7 +392,7 @@ export function ProfilePage() {
             </Button>
             <Button
               variant="outline"
-              onClick={handleLogout}
+              onClick={() => setLogoutOpen(true)}
               className="h-9 w-full border-destructive/30 text-sm text-destructive hover:bg-destructive/10"
             >
               <LogOut className="mr-2 h-4 w-4" />
@@ -397,6 +401,26 @@ export function ProfilePage() {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Выйти из аккаунта?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Сессия на этом устройстве будет завершена. Войти снова можно по email и паролю.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => setCurrentUser(null)}
+            >
+              Выйти
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AvatarCropDialog
         open={cropOpen}

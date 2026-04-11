@@ -11,6 +11,9 @@ import type {
   Theme,
   InboxNotification,
   PendingSupportNav,
+  ChatMessage,
+  ChatReplyRef,
+  ChatThreadSummary,
 } from './types'
 
 export interface AppStore {
@@ -27,6 +30,10 @@ export interface AppStore {
   pendingNewsId: string | null
   /** Открыть вкладку/статью поддержки при переходе на «Поддержка» */
   pendingSupportNav: PendingSupportNav | null
+
+  chatThreads: ChatThreadSummary[]
+  chatMessages: Record<string, ChatMessage[]>
+  selectedChatPeerId: string | null
 
   // Actions
   setCurrentUser: (user: User | null) => void
@@ -45,6 +52,17 @@ export interface AppStore {
   markAllInboxNotificationsRead: () => void
   setPendingNewsId: (id: string | null) => void
   setPendingSupportNav: (nav: PendingSupportNav | null) => void
+
+  setSelectedChatPeerId: (peerId: string | null) => void
+  ensureChatThread: (peer: User) => void
+  sendChatText: (peerId: string, text: string, replyTo?: ChatReplyRef) => void
+  sendChatVoice: (peerId: string, mediaUrl: string, durationSec: number) => void
+  sendChatFiles: (
+    peerId: string,
+    files: { url: string; fileName: string; mimeType: string; kind: 'image' | 'file' }[],
+    options?: { caption?: string; combineAsAlbum?: boolean },
+  ) => void
+  markChatThreadRead: (peerId: string) => void
   
   // Group actions
   addGroup: (group: Group) => void

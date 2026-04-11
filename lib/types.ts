@@ -72,6 +72,43 @@ export interface AppState {
   theme: Theme
 }
 
+export type ChatMessageKind = 'text' | 'voice' | 'image' | 'file'
+
+/** Ссылка на сообщение, на которое отвечают (снимок для отображения) */
+export interface ChatReplyRef {
+  messageId: string
+  preview: string
+  senderName: string
+}
+
+export interface ChatMessage {
+  id: string
+  threadPeerId: string
+  senderId: string
+  createdAt: Date
+  kind: ChatMessageKind
+  text?: string
+  /** Ответ на сообщение в этой же переписке */
+  replyTo?: ChatReplyRef
+  mediaUrl?: string
+  /** Несколько фото в одном сообщении (альбом) */
+  mediaUrls?: string[]
+  fileName?: string
+  mimeType?: string
+  /** Подпись к вложению от пользователя */
+  caption?: string
+  /** Длительность голосового, сек (приблизительно) */
+  durationSec?: number
+}
+
+export interface ChatThreadSummary {
+  peerId: string
+  peer: User
+  lastMessageAt: Date
+  lastPreview: string
+  unreadCount: number
+}
+
 /** Куда вести пользователя по нажатию на уведомление */
 export type InboxNotificationTarget =
   | { kind: 'task_list'; groupId: string; sectionId: string; taskListId: string }
@@ -80,6 +117,7 @@ export type InboxNotificationTarget =
   | { kind: 'news'; newsId: string }
   | { kind: 'support'; tab: 'chat' | 'knowledge'; articleId?: string }
   | { kind: 'profile' }
+  | { kind: 'chat'; peerId: string }
 
 export interface InboxNotification {
   id: string
@@ -102,4 +140,5 @@ export type InboxNavUiHint =
   | 'home_sections'
   | 'news'
   | 'support'
+  | 'chat'
   | 'profile'

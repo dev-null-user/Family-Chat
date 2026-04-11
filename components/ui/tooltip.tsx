@@ -21,10 +21,33 @@ function TooltipProvider({
 function Tooltip({
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+}
+
+/** Подсказка для узких колонок (иконки без текста). Требует TooltipProvider выше по дереву. */
+function IconLabelTooltip({
+  enabled,
+  label,
+  side = 'right',
+  children,
+}: {
+  enabled: boolean
+  label: string
+  side?: React.ComponentProps<typeof TooltipPrimitive.Content>['side']
+  children: React.ReactElement
+}) {
+  if (!enabled) return children
   return (
-    <TooltipProvider>
-      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent
+        side={side}
+        sideOffset={6}
+        className="max-w-[min(18rem,calc(100vw-1.5rem))]"
+      >
+        {label}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -58,4 +81,4 @@ function TooltipContent({
   )
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, IconLabelTooltip }

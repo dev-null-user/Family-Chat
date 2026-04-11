@@ -1,17 +1,19 @@
 import * as React from 'react'
 
-const MOBILE_BREAKPOINT = 768
+/** Мобильный UI при ширине < 1280px — как Tailwind `xl` (десктоп с 1280px) */
+const MOBILE_MAX_WIDTH_PX = 1279
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
 
   React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+    const query = `(max-width: ${MOBILE_MAX_WIDTH_PX}px)`
+    const mql = window.matchMedia(query)
     const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+      setIsMobile(window.matchMedia(query).matches)
     }
     mql.addEventListener('change', onChange)
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    onChange()
     return () => mql.removeEventListener('change', onChange)
   }, [])
 

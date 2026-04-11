@@ -29,6 +29,8 @@ function targetHint(target: InboxNotification['target']): InboxNavUiHint {
       return 'support'
     case 'profile':
       return 'profile'
+    case 'chat':
+      return 'chat'
   }
 }
 
@@ -41,6 +43,7 @@ export function NotificationsBell({ className, onInboxNavigate }: NotificationsB
     setNavigationContext,
     setPendingNewsId,
     setPendingSupportNav,
+    setSelectedChatPeerId,
   } = useAppStore()
 
   const sorted = useMemo(
@@ -82,6 +85,9 @@ export function NotificationsBell({ className, onInboxNavigate }: NotificationsB
         setPendingSupportNav({ tab: t.tab, articleId: t.articleId })
         break
       case 'profile':
+        break
+      case 'chat':
+        setSelectedChatPeerId(t.peerId)
         break
     }
     onInboxNavigate?.(targetHint(t))
