@@ -15,6 +15,7 @@ import type { Activity } from '@/lib/types'
 import { formatCreatorLine } from '@/lib/task-meta-utils'
 import { DEFAULT_GROUP_KEY } from '@/lib/task-group-utils'
 import { Plus, Pencil, ListTodo, ChevronLeft, MessageSquare, CheckSquare } from 'lucide-react'
+import { pushRecentTaskList } from '@/lib/recent-task-lists'
 
 interface TaskListDetailProps {
   onBack?: () => void
@@ -32,6 +33,8 @@ export function TaskListDetail({ onBack }: TaskListDetailProps) {
     addActivity,
     markAsRead,
     selectedTaskListId,
+    selectSection,
+    selectTaskList,
   } = useAppStore()
 
   const [activeTab, setActiveTab] = useState('tasks')
@@ -49,6 +52,16 @@ export function TaskListDetail({ onBack }: TaskListDetailProps) {
       markAsRead(selectedTaskListId)
     }
   }, [selectedTaskListId, markAsRead])
+
+  useEffect(() => {
+    if (!taskList || !group || !section) return
+    pushRecentTaskList({
+      groupId: group.id,
+      sectionId: section.id,
+      taskListId: taskList.id,
+      title: taskList.title,
+    })
+  }, [taskList?.id, taskList?.title, group?.id, section?.id])
 
   const handleToggleTask = (taskId: string) => {
     if (!taskList) return
@@ -92,8 +105,8 @@ export function TaskListDetail({ onBack }: TaskListDetailProps) {
       <div className="flex items-center justify-center h-full p-4">
         <Empty
           icon={<ListTodo className="h-10 w-10" />}
-          title="Выберите список"
-          description="Выберите список задач для просмотра"
+          title="Выберите список задач"
+          description="Слева откройте группу → раздел → список. Недавние списки можно открыть с первого экрана «Группы»."
         />
       </div>
     )
@@ -108,23 +121,61 @@ export function TaskListDetail({ onBack }: TaskListDetailProps) {
           </Button>
         )}
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-            {group?.name} / {section?.name}
-          </p>
-          <div className="mt-0.5 flex min-w-0 items-center gap-1">
-            <h2 className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground sm:text-sm">{taskList.title}</h2>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
-              title="Переименовать список"
-              aria-label="Переименовать список"
-              onClick={() => setManageOpen(true)}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-          </div>
+          <nav
+            aria-label="Навигация: группа, раздел, список"
+            className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-[11px] sm:text-xs"
+          >
+            {group && (
+              <>
+                <button
+                  type="button"
+                  className="max-w-[40%] truncate rounded-sm text-left text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => {
+                    selectSection(null)
+                    selectTaskList(null)
+                  }}
+                >
+                  {group.name}
+                </button>
+                <span className="shrink-0 text-muted-foreground/50" aria-hidden>
+                  /
+                </span>
+              </>
+            )}
+            {section && (
+              <>
+                <button
+                  type="button"
+                  className="max-w-[40%] truncate rounded-sm text-left text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => selectTaskList(null)}
+                >
+                  {section.name}
+                </button>
+                <span className="shrink-0 text-muted-foreground/50" aria-hidden>
+                  /
+                </span>
+              </>
+            )}
+            <span className="flex min-w-0 max-w-full items-center gap-0.5">
+              <span
+                className="min-w-0 truncate font-semibold text-foreground"
+                aria-current="page"
+              >
+                {taskList.title}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground sm:h-8 sm:w-8"
+                title="Переименовать список"
+                aria-label="Переименовать список"
+                onClick={() => setManageOpen(true)}
+              >
+                <Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              </Button>
+            </span>
+          </nav>
           <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
             {formatCreatorLine(taskList.createdBy, taskList.createdAt)}
           </p>

@@ -44,7 +44,7 @@ export function ChatPage() {
             <Empty
               icon={<MessageCircle className="h-12 w-12 text-muted-foreground" />}
               title="Выберите чат"
-              description="Слева список переписок и поиск по имени, email или телефону"
+              description="Слева список переписок. Нет нужного контакта — введите имя, email или телефон в поиске и откройте диалог."
             />
           </div>
         )}

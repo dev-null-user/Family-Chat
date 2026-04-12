@@ -15,6 +15,52 @@ interface NotificationsBellProps {
   onInboxNavigate?: (hint: InboxNavUiHint) => void
 }
 
+function notificationKindMeta(
+  kind: InboxNotification['target']['kind'],
+): { label: string; className: string } {
+  switch (kind) {
+    case 'chat':
+      return {
+        label: 'Чат',
+        className: 'bg-violet-500/12 text-violet-700 dark:text-violet-300',
+      }
+    case 'task_list':
+    case 'section':
+    case 'group':
+      return {
+        label: 'Задачи',
+        className: 'bg-emerald-500/12 text-emerald-800 dark:text-emerald-300',
+      }
+    case 'news':
+      return {
+        label: 'Новости',
+        className: 'bg-sky-500/12 text-sky-800 dark:text-sky-300',
+      }
+    case 'support':
+      return {
+        label: 'Поддержка',
+        className: 'bg-amber-500/15 text-amber-900 dark:text-amber-200',
+      }
+    case 'profile':
+      return {
+        label: 'Профиль',
+        className: 'bg-rose-500/12 text-rose-800 dark:text-rose-300',
+      }
+    default:
+      return { label: '', className: '' }
+  }
+}
+
+function bucketForNotification(createdAt: Date): 'today' | 'yesterday' | 'older' {
+  const now = new Date()
+  const t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const c0 = new Date(createdAt.getFullYear(), createdAt.getMonth(), createdAt.getDate()).getTime()
+  const diffDays = Math.round((t0 - c0) / 86400000)
+  if (diffDays === 0) return 'today'
+  if (diffDays === 1) return 'yesterday'
+  return 'older'
+}
+
 function targetHint(target: InboxNotification['target']): InboxNavUiHint {
   switch (target.kind) {
     case 'task_list':
@@ -50,6 +96,22 @@ export function NotificationsBell({ className, onInboxNavigate }: NotificationsB
     () => [...inboxNotifications].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
     [inboxNotifications]
   )
+
+  const groupedNotifications = useMemo(() => {
+    const buckets: Record<'today' | 'yesterday' | 'older', InboxNotification[]> = {
+      today: [],
+      yesterday: [],
+      older: [],
+    }
+    for (const n of sorted) {
+      buckets[bucketForNotification(n.createdAt)].push(n)
+    }
+    const order: ('today' | 'yesterday' | 'older')[] = ['today', 'yesterday', 'older']
+    const titles = { today: 'Сегодня', yesterday: 'Вчера', older: 'Ранее' } as const
+    return order
+      .filter(k => buckets[k].length > 0)
+      .map(k => ({ key: k, title: titles[k], items: buckets[k] }))
+  }, [sorted])
 
   const unreadCount = useMemo(() => inboxNotifications.filter(n => !n.read).length, [inboxNotifications])
 
@@ -119,33 +181,57 @@ export function NotificationsBell({ className, onInboxNavigate }: NotificationsB
           {sorted.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8 px-4">Пока нет уведомлений</p>
           ) : (
-            <ul className="py-1">
-              {sorted.map(n => (
-                <li key={n.id}>
-                  <button
-                    type="button"
-                    className={cn(
-                      'w-full text-left px-3 py-2.5 hover:bg-accent/60 transition-colors border-b border-border/60 last:border-0',
-                      !n.read && 'bg-primary/5'
-                    )}
-                    onClick={() => handleItem(n)}
-                  >
-                    <div className="flex items-start gap-2">
-                      {!n.read && (
-                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
-                      )}
-                      <div className={cn('min-w-0 flex-1', n.read && 'pl-3.5')}>
-                        <p className="text-sm font-medium text-foreground leading-snug">{n.title}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
-                        <p className="text-[10px] text-muted-foreground/80 mt-1">
-                          {formatDistanceToNow(n.createdAt)}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                </li>
+            <div className="py-1">
+              {groupedNotifications.map(group => (
+                <div key={group.key}>
+                  <p className="sticky top-0 z-[1] bg-popover px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {group.title}
+                  </p>
+                  <ul>
+                    {group.items.map(n => {
+                      const meta = notificationKindMeta(n.target.kind)
+                      return (
+                        <li key={n.id}>
+                          <button
+                            type="button"
+                            className={cn(
+                              'w-full border-b border-border/60 text-left transition-colors hover:bg-accent/60',
+                              !n.read && 'bg-primary/5'
+                            )}
+                            onClick={() => handleItem(n)}
+                          >
+                            <div className="flex items-start gap-2 px-3 py-2.5">
+                              {!n.read && (
+                                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
+                              )}
+                              <div className={cn('min-w-0 flex-1', n.read && 'pl-3.5')}>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {meta.label && (
+                                    <span
+                                      className={cn(
+                                        'rounded px-1.5 py-0 text-[9px] font-semibold',
+                                        meta.className
+                                      )}
+                                    >
+                                      {meta.label}
+                                    </span>
+                                  )}
+                                  <p className="text-sm font-medium leading-snug text-foreground">{n.title}</p>
+                                </div>
+                                <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{n.body}</p>
+                                <p className="mt-1 text-[10px] text-muted-foreground/85">
+                                  {formatDistanceToNow(n.createdAt)}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </ScrollArea>
       </PopoverContent>

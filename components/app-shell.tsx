@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useId, useRef, useMemo } from 'react'
+import { useState, useEffect, useId, useMemo } from 'react'
 import { MobileNav, type MobileTab } from './mobile-nav'
 import { GroupsList } from './groups/groups-list'
 import { SectionsList } from './sections/sections-list'
@@ -16,7 +16,6 @@ import { NotificationsBell } from './notifications/notifications-bell'
 import { useAppStore } from '@/lib/store'
 import { useGroupsColumnWidthPx } from '@/hooks/use-groups-column-width'
 import { useViewportWidthHysteresis } from '@/hooks/use-media-max-width'
-import { useColumnRevealAfterExpand } from '@/hooks/use-column-reveal-after-expand'
 import { useIsMobile } from '@/components/ui/use-mobile'
 import { useSectionsColumnWidthPx } from '@/hooks/use-sections-column-width'
 import { useTaskListsColumnWidthPx } from '@/hooks/use-task-lists-column-width'
@@ -184,17 +183,11 @@ export function AppShell() {
     !!selectedSectionId && !isMobile && !taskListsColumnCompact,
   )
 
-  const groupsAsideRef = useRef<HTMLElement>(null)
-  const sectionsAsideRef = useRef<HTMLElement>(null)
-  const taskListsAsideRef = useRef<HTMLElement>(null)
-
-  const groupsListRevealFull = useColumnRevealAfterExpand(groupsColumnCompact, groupsAsideRef)
-  const sectionsListRevealFull = useColumnRevealAfterExpand(sectionsColumnCompact, sectionsAsideRef)
-  const taskListsListRevealFull = useColumnRevealAfterExpand(taskListsColumnCompact, taskListsAsideRef)
-
-  const groupsListIconOnlyRows = groupsColumnCompact || !groupsListRevealFull
-  const sectionsListIconOnlyRows = sectionsColumnCompact || !sectionsListRevealFull
-  const taskListsListIconOnlyRows = taskListsColumnCompact || !taskListsListRevealFull
+  /** Узкая колонка «Группы»: иконка + мелкое название под ней, без стрелки/редактирования/длинной строки. */
+  const groupsListIconOnlyRows =
+    !isMobile && (homeViewportNarrowHysteresis || groupsColumnCompact)
+  const sectionsListIconOnlyRows = false
+  const taskListsListIconOnlyRows = false
 
   useEffect(() => {
     if (isMobile && mobileTab === 'home') {
@@ -476,7 +469,6 @@ export function AppShell() {
           {desktopTab === 'home' && (
             <div className="flex h-full min-h-0 min-w-0 flex-1 lg:bg-muted/25 lg:p-2.5 dark:lg:bg-muted/15">
               <aside
-                ref={groupsAsideRef}
                 className={cn(
                   homePaneClass,
                   'hidden h-full transition-[width,min-width,max-width] duration-300 ease-out lg:block',
@@ -502,7 +494,6 @@ export function AppShell() {
               <DesktopHomeColumnDivider />
 
               <aside
-                ref={sectionsAsideRef}
                 className={cn(
                   homePaneMutedClass,
                   'h-full shrink-0 transition-[min-width,width,max-width] duration-300 ease-out',
@@ -528,7 +519,6 @@ export function AppShell() {
                 <>
                   <DesktopHomeColumnDivider className="hidden xl:flex" />
                   <aside
-                    ref={taskListsAsideRef}
                     className={cn(
                       homePaneClass,
                       'h-full shrink-0 transition-[min-width,width,max-width] duration-300 ease-out hidden xl:block',

@@ -53,7 +53,7 @@ export function GroupCard({ group, onClick, onEdit, isSelected, desktopIconOnly 
         className={cn(
           'flex min-w-0 flex-1 items-center gap-3 text-left max-lg:p-3.5 max-lg:pr-2',
           'lg:gap-2.5 lg:px-2.5 lg:py-3 2xl:gap-3 2xl:px-4',
-          desktopIconOnly && 'lg:flex-col lg:justify-center lg:gap-1.5 lg:px-1.5 lg:py-2.5',
+          desktopIconOnly && 'lg:flex-col lg:justify-center lg:gap-1 lg:px-1 lg:py-2',
         )}
         onClick={onClick}
       >
@@ -77,10 +77,10 @@ export function GroupCard({ group, onClick, onEdit, isSelected, desktopIconOnly 
 
         {desktopIconOnly && (
           <span
-            className="hidden w-full max-w-[6.75rem] truncate text-center text-[10px] font-medium leading-tight text-foreground lg:block"
+            className="hidden w-full max-w-[6.75rem] px-0.5 text-center text-[9px] font-medium leading-snug text-muted-foreground lg:block lg:text-foreground/90"
             title={group.name}
           >
-            {group.name}
+            <span className="line-clamp-2 break-words">{group.name}</span>
           </span>
         )}
 
