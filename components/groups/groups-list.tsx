@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { GroupCard } from './group-card'
 import { CreateGroupDialog } from './create-group-dialog'
 import { EditGroupDialog } from './edit-group-dialog'
@@ -14,9 +14,7 @@ import {
   type RecentTaskListEntry,
 } from '@/lib/recent-task-lists'
 import { Clock, Plus, Users } from 'lucide-react'
-
-/** Ниже этой ширины колонки на lg+ — компактные строки (иконка + мелкое имя), без стрелки/редактирования и без «Недавних». */
-const GROUPS_COLUMN_FULL_LAYOUT_MIN_PX = 280
+import { useSidebarColumnWideEnoughForFullRow } from '@/lib/sidebar-column-layout'
 
 interface GroupsListProps {
   onGroupSelect?: (groupId: string) => void
@@ -26,38 +24,11 @@ interface GroupsListProps {
 
 export function GroupsList({ onGroupSelect, desktopIconOnlyRows = false }: GroupsListProps) {
   const { groups, selectedGroupId, selectGroup, setNavigationContext } = useAppStore()
-  const rootRef = useRef<HTMLDivElement>(null)
-  /**
-   * На <lg всегда true (мобильная шапка и карточки без десктоп-компакта).
-   * На lg+: true только если колонка ≥ GROUPS_COLUMN_FULL_LAYOUT_MIN_PX.
-   */
-  const [wideEnoughForFullDesktopRow, setWideEnoughForFullDesktopRow] = useState(false)
+  const { rootRef, wideEnoughForFullDesktopRow } = useSidebarColumnWideEnoughForFullRow()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [recentRaw, setRecentRaw] = useState<RecentTaskListEntry[]>(() => loadRecentTaskLists())
   const editingGroup = editingGroupId ? groups.find(g => g.id === editingGroupId) : null
-
-  useLayoutEffect(() => {
-    const el = rootRef.current
-    if (!el || typeof ResizeObserver === 'undefined') return
-
-    const mql = window.matchMedia('(min-width: 1024px)')
-
-    const sync = () => {
-      const isLg = mql.matches
-      const w = el.getBoundingClientRect().width
-      setWideEnoughForFullDesktopRow(!isLg || w >= GROUPS_COLUMN_FULL_LAYOUT_MIN_PX)
-    }
-
-    sync()
-    const ro = new ResizeObserver(() => sync())
-    ro.observe(el)
-    mql.addEventListener('change', sync)
-    return () => {
-      ro.disconnect()
-      mql.removeEventListener('change', sync)
-    }
-  }, [])
 
   /** Полное имя группы, стрелка, редактирование и «Недавние» — только при раскрытой колонке и без узкого режима от shell. */
   const useFullDesktopGroupRow = !desktopIconOnlyRows && wideEnoughForFullDesktopRow

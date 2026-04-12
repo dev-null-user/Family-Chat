@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSidebarColumnWideEnoughForFullRow } from '@/lib/sidebar-column-layout'
 import { SectionCard } from './section-card'
 import { CreateSectionDialog } from './create-section-dialog'
 import { EditSectionDialog } from './edit-section-dialog'
@@ -23,6 +24,7 @@ export function SectionsList({
   onBack,
   desktopIconOnlyRows = false,
 }: SectionsListProps) {
+  const { rootRef, wideEnoughForFullDesktopRow } = useSidebarColumnWideEnoughForFullRow()
   const { selectedGroupId, selectedSectionId, selectSection, getSelectedGroup } = useAppStore()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
@@ -37,24 +39,35 @@ export function SectionsList({
     onSectionSelect?.(sectionId)
   }
 
+  const useFullDesktopSectionRow = !desktopIconOnlyRows && wideEnoughForFullDesktopRow
+  const useCompactDesktopSectionRow = !useFullDesktopSectionRow
+
   if (!group) {
     return (
-      <div className="flex items-center justify-center h-full p-4">
-        <Empty
-          icon={<FolderOpen className="h-10 w-10" />}
-          title="Выберите группу"
-          description="Выберите группу для просмотра секций"
-        />
+      <div
+        ref={rootRef}
+        className="flex h-full min-h-0 w-full min-w-0 flex-col max-lg:bg-transparent lg:bg-background"
+      >
+        <div className="flex flex-1 items-center justify-center p-4">
+          <Empty
+            icon={<FolderOpen className="h-10 w-10" />}
+            title="Выберите группу"
+            description="Выберите группу для просмотра секций"
+          />
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col max-lg:bg-transparent lg:bg-background">
+    <div
+      ref={rootRef}
+      className="flex h-full min-h-0 w-full min-w-0 flex-col max-lg:bg-transparent lg:bg-background"
+    >
       <div
         className={cn(
           'flex shrink-0 border-b border-border/40 bg-background/40 backdrop-blur-md max-lg:border-border/30 lg:border-border lg:bg-card lg:backdrop-blur-none',
-          desktopIconOnlyRows
+          useCompactDesktopSectionRow
             ? 'flex-col items-center gap-2 px-2 py-2.5 max-lg:flex-row max-lg:items-center max-lg:gap-2 max-lg:px-2 max-lg:py-2.5 lg:gap-2 2xl:gap-3'
             : 'items-center gap-2 px-2 py-2.5 lg:gap-2.5 lg:px-2.5 lg:py-3 2xl:gap-3 2xl:px-4',
         )}
@@ -72,7 +85,7 @@ export function SectionsList({
         <div
           className={cn(
             'flex min-w-0 flex-1 items-start gap-1',
-            desktopIconOnlyRows && 'lg:hidden',
+            useCompactDesktopSectionRow && 'lg:hidden',
             onBack && 'max-lg:min-w-0',
           )}
         >
@@ -96,7 +109,7 @@ export function SectionsList({
             </p>
           </div>
         </div>
-        {desktopIconOnlyRows && (
+        {useCompactDesktopSectionRow && (
           <h2 className="hidden text-center text-[13px] font-semibold leading-tight tracking-tight text-foreground lg:block">
             Разделы
           </h2>
@@ -106,14 +119,14 @@ export function SectionsList({
           variant="ghost"
           className={cn(
             'shrink-0',
-            desktopIconOnlyRows
+            useCompactDesktopSectionRow
               ? 'h-7 w-7 max-lg:h-8 max-lg:w-8 lg:rounded-md'
               : 'h-8 w-8',
           )}
           onClick={() => setShowCreateDialog(true)}
           aria-label="Создать раздел"
         >
-          <Plus className={cn(desktopIconOnlyRows ? 'h-4 w-4 max-lg:h-4' : 'h-4 w-4')} />
+          <Plus className="h-4 w-4" />
         </Button>
       </div>
 
@@ -138,7 +151,7 @@ export function SectionsList({
               <SectionCard
                 key={section.id}
                 section={section}
-                desktopIconOnly={desktopIconOnlyRows}
+                desktopIconOnly={useCompactDesktopSectionRow}
                 onClick={() => handleSectionClick(section.id)}
                 onEdit={() => setEditingSectionId(section.id)}
                 isSelected={selectedSectionId === section.id}
