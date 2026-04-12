@@ -22,6 +22,8 @@ import { mockGroups, mockUsers } from '@/lib/mock-data'
 import { createInitialChatState } from '@/lib/chat-seed'
 import { DEFAULT_GROUP_KEY } from '@/lib/task-group-utils'
 import { seedInboxNotifications } from '@/lib/inbox-notifications'
+import { restoreSession } from '@/lib/auth-api'
+import { clearTokens, getRefreshToken } from '@/lib/auth-tokens'
 
 export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -78,18 +80,53 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     return () => mq.removeEventListener('change', onChange)
   }, [theme, applyThemeToDocument])
 
-  // Check if user is already logged in
+  // Восстановление сессии по JWT (или очистка устаревшего `user` без токенов)
   useEffect(() => {
-    const savedUser = localStorage.getItem('user')
-    if (savedUser) {
-      const parsed = JSON.parse(savedUser) as User
-      setUser(parsed)
-      setGroupsState(mockGroups)
-      setInboxNotifications(seedInboxNotifications())
-      const chat = createInitialChatState(parsed)
-      setChatThreads(chat.threads)
-      setChatMessages(chat.messages)
-      setIsAuthenticated(true)
+    let cancelled = false
+    ;(async () => {
+      try {
+        const me = await restoreSession()
+        if (cancelled) return
+        if (!me) {
+          if (!getRefreshToken()) {
+            const saved = localStorage.getItem('user')
+            if (saved) localStorage.removeItem('user')
+          }
+          return
+        }
+        const saved = localStorage.getItem('user')
+        let prev: User | null = null
+        try {
+          prev = saved ? (JSON.parse(saved) as User) : null
+        } catch {
+          prev = null
+        }
+        const merged: User = {
+          id: me.id,
+          email: me.email,
+          name: me.name,
+          phone: me.phone ?? (prev?.id === me.id ? prev.phone : undefined),
+          gender: me.gender ?? (prev?.id === me.id ? prev.gender : undefined),
+          birthYear: me.birthYear ?? (prev?.id === me.id ? prev.birthYear : undefined),
+          avatar: me.avatar ?? (prev?.id === me.id ? prev.avatar : undefined),
+        }
+        setUser(merged)
+        localStorage.setItem('user', JSON.stringify(merged))
+        setGroupsState(mockGroups)
+        setInboxNotifications(seedInboxNotifications())
+        const chat = createInitialChatState(merged)
+        setChatThreads(chat.threads)
+        setChatMessages(chat.messages)
+        setIsAuthenticated(true)
+      } catch {
+        if (!cancelled) {
+          clearTokens()
+          localStorage.removeItem('user')
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
     }
   }, [])
 
@@ -107,6 +144,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       setSelectedChatPeerId(null)
       setIsAuthenticated(true)
     } else {
+      clearTokens()
       localStorage.removeItem('user')
       setGroupsState([])
       setInboxNotifications([])

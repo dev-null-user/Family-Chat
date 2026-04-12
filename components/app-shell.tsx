@@ -14,6 +14,7 @@ import { ChatPage } from './chat/chat-page'
 import { ThemeToggle } from './theme-toggle'
 import { NotificationsBell } from './notifications/notifications-bell'
 import { useAppStore } from '@/lib/store'
+import { logoutFromServer } from '@/lib/auth-api'
 import { useGroupsColumnWidthPx } from '@/hooks/use-groups-column-width'
 import { useViewportWidthHysteresis } from '@/hooks/use-media-max-width'
 import { useIsMobile } from '@/components/ui/use-mobile'
@@ -591,7 +592,13 @@ export function AppShell() {
           <AlertDialogCancel>Отмена</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            onClick={() => setCurrentUser(null)}
+            onClick={() => {
+              void (async () => {
+                await logoutFromServer()
+                setCurrentUser(null)
+                setLogoutOpen(false)
+              })()
+            }}
           >
             Выйти
           </AlertDialogAction>

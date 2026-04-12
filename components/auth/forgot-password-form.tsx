@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
 import { Spinner } from '@/components/ui/spinner'
 import { Mail, ArrowLeft, CheckCircle } from 'lucide-react'
+import { authForgotPassword, AuthApiError } from '@/lib/auth-api'
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState('')
@@ -25,10 +26,18 @@ export function ForgotPasswordForm() {
     }
 
     setIsLoading(true)
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    setIsSuccess(true)
-    setIsLoading(false)
+    try {
+      await authForgotPassword(email.trim())
+      setIsSuccess(true)
+    } catch (err) {
+      if (err instanceof AuthApiError) {
+        setError(err.message)
+      } else {
+        setError('Не удалось отправить запрос. Проверьте подключение к API.')
+      }
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   if (isSuccess) {

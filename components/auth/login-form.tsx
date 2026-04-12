@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,9 +10,12 @@ import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Eye, EyeOff, Mail, Lock, Users } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
-import { currentUser } from '@/lib/mock-data'
+import { authLogin, AuthApiError } from '@/lib/auth-api'
+import { saveTokens } from '@/lib/auth-tokens'
+import type { User } from '@/lib/types'
 
 export function LoginForm() {
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -22,17 +26,31 @@ export function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    setIsLoading(true)
-
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000))
-
-    if (email && password) {
-      setCurrentUser(currentUser)
-    } else {
+    if (!email.trim() || !password) {
       setError('Пожалуйста, заполните все поля')
+      return
     }
-    setIsLoading(false)
+
+    setIsLoading(true)
+    try {
+      const data = await authLogin(email.trim(), password)
+      saveTokens(data.accessToken, data.refreshToken)
+      const user: User = {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.name,
+      }
+      setCurrentUser(user)
+      router.push('/')
+    } catch (err) {
+      if (err instanceof AuthApiError) {
+        setError(err.message)
+      } else {
+        setError('Не удалось связаться с сервером. Проверьте, что API запущен.')
+      }
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -62,6 +80,7 @@ export function LoginForm() {
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   className="pl-9 h-10 bg-background"
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -76,6 +95,7 @@ export function LoginForm() {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   className="pl-9 pr-9 h-10 bg-background"
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"

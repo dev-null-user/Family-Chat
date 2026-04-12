@@ -2,7 +2,9 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAppStore } from '@/lib/store'
-import type { UserGender } from '@/lib/types'
+import { authPatchMe, AuthApiError, logoutFromServer } from '@/lib/auth-api'
+import { getAccessToken } from '@/lib/auth-tokens'
+import type { User, UserGender } from '@/lib/types'
 import {
   loadNotificationPreferences,
   saveNotificationPreferences,
@@ -29,7 +31,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import {
-  User,
+  User as UserIcon,
   Mail,
   Phone,
   LogOut,
@@ -64,6 +66,7 @@ export function ProfilePage() {
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [cropOpen, setCropOpen] = useState(false)
   const [logoutOpen, setLogoutOpen] = useState(false)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
@@ -119,21 +122,60 @@ export function ProfilePage() {
   }
 
   const handleSave = () => {
-    setSaving(true)
-    setTimeout(() => {
-      if (currentUser) {
-        setCurrentUser({
-          ...currentUser,
-          name,
-          email,
-          phone,
-          gender,
-        })
-      }
-      setSaving(false)
+    if (!currentUser) return
+    setSaveError('')
+    const token = getAccessToken()
+    if (!token) {
+      setCurrentUser({
+        ...currentUser,
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim() || undefined,
+        gender,
+      })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
-    }, 500)
+      return
+    }
+
+    setSaving(true)
+    void (async () => {
+      try {
+        const updated = await authPatchMe(token, {
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim() ? phone.trim() : null,
+          gender: gender ?? null,
+          avatar: currentUser.avatar ?? null,
+        })
+        const next: User = {
+          id: updated.id,
+          email: updated.email,
+          name: updated.name,
+          phone: updated.phone,
+          gender: updated.gender,
+          birthYear: updated.birthYear ?? currentUser.birthYear,
+          avatar: updated.avatar ?? currentUser.avatar,
+        }
+        setCurrentUser(next)
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      } catch (err) {
+        console.error(err)
+        if (err instanceof AuthApiError) {
+          if (err.status === 409) {
+            setEmail(currentUser.email)
+            setSaveError('Этот email уже занят')
+          } else {
+            setSaveError(err.message)
+          }
+        } else {
+          setSaveError('Не удалось сохранить. Проверьте соединение с сервером.')
+        }
+      } finally {
+        setSaving(false)
+      }
+    })()
   }
 
   const themeOptions = [
@@ -251,7 +293,7 @@ export function ProfilePage() {
                   <div className="grid gap-1.5 sm:grid-cols-2">
                     <div className="space-y-0.5">
                       <Label htmlFor="name" className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                        <User className="h-3 w-3" />
+                        <UserIcon className="h-3 w-3" />
                         ФИО
                       </Label>
                       <Input
@@ -407,6 +449,9 @@ export function ProfilePage() {
         </div>
 
         <div className="shrink-0 space-y-1.5 border-t border-border/50 bg-background/90 px-2.5 py-2 backdrop-blur-md md:px-3">
+          {saveError ? (
+            <p className="text-center text-xs text-destructive">{saveError}</p>
+          ) : null}
           <Button onClick={handleSave} disabled={saving} className="h-9 w-full text-sm">
             {saving ? (
               'Сохранение…'
@@ -442,7 +487,13 @@ export function ProfilePage() {
             <AlertDialogCancel>Отмена</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => setCurrentUser(null)}
+              onClick={() => {
+                void (async () => {
+                  await logoutFromServer()
+                  setCurrentUser(null)
+                  setLogoutOpen(false)
+                })()
+              }}
             >
               Выйти
             </AlertDialogAction>

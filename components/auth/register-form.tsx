@@ -2,19 +2,22 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Spinner } from '@/components/ui/spinner'
-import { Eye, EyeOff, Mail, Lock, User, Phone, Calendar } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, User as UserIcon, Phone, Calendar } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
-import { currentUser } from '@/lib/mock-data'
-import type { UserGender } from '@/lib/types'
+import { authRegister, AuthApiError } from '@/lib/auth-api'
+import { saveTokens } from '@/lib/auth-tokens'
+import type { User, UserGender } from '@/lib/types'
 import { GenderSelect } from '@/components/profile/gender-select'
 
 export function RegisterForm() {
+  const router = useRouter()
   const [formData, setFormData] = useState({
     name: '',
     birthYear: '',
@@ -56,24 +59,46 @@ export function RegisterForm() {
       return
     }
 
+    if (formData.password.length < 8) {
+      setError('Пароль должен быть не короче 8 символов')
+      return
+    }
+
     if (!acceptPolicy) {
       setError('Необходимо принять политику конфиденциальности')
       return
     }
 
     setIsLoading(true)
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    setCurrentUser({
-      ...currentUser,
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
-      gender: formData.gender,
-      birthYear: formData.birthYear ? parseInt(formData.birthYear) : undefined,
-    })
-    setIsLoading(false)
+    try {
+      const data = await authRegister({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        password: formData.password,
+        phone: formData.phone.trim(),
+        gender: formData.gender,
+        birthYear: formData.birthYear ? parseInt(formData.birthYear, 10) : undefined,
+      })
+      saveTokens(data.accessToken, data.refreshToken)
+      const user: User = {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.name,
+        phone: data.user.phone ?? formData.phone.trim(),
+        gender: data.user.gender ?? formData.gender,
+        birthYear: data.user.birthYear ?? (formData.birthYear ? parseInt(formData.birthYear, 10) : undefined),
+      }
+      setCurrentUser(user)
+      router.push('/')
+    } catch (err) {
+      if (err instanceof AuthApiError) {
+        setError(err.message)
+      } else {
+        setError('Не удалось связаться с сервером. Проверьте, что API запущен.')
+      }
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -106,7 +131,7 @@ export function RegisterForm() {
             <Field>
               <FieldLabel htmlFor="name">Полное имя *</FieldLabel>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <UserIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="name"
                   type="text"
